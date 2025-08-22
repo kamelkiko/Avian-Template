@@ -3,3 +3,4 @@ package-lock.json
 .prettierrc
 .vscode
 dist/
+.env
