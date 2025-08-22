@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
 
+import { useAuthStore } from "@src/store/auth";
 import useStore from "@src/store/store";
-import { fetchData } from "@src/store/defaults";
 
 import FadeTransition from "@src/components/ui/transitions/FadeTransition.vue";
 
@@ -30,6 +30,7 @@ import FadeTransition from "@src/components/ui/transitions/FadeTransition.vue";
 // todo add dynamic imports.
 // todo add chunking.
 
+const authStore = useAuthStore();
 const store = useStore();
 
 // update localStorage with state changes
@@ -37,23 +38,29 @@ store.$subscribe((_mutation, state) => {
   localStorage.setItem("chat", JSON.stringify(state));
 });
 
-// here we load the data from the server.
+// Initialize the application
 onMounted(async () => {
-  store.status = "loading";
-
-  // fake server call
-  setTimeout(() => {
-    store.delayLoading = false;
-  });
-  const request = await fetchData();
-
-  store.$patch({
-    status: "success",
-    user: request.data.user,
-    conversations: request.data.conversations,
-    notifications: request.data.notifications,
-    archivedConversations: request.data.archivedConversations,
-  });
+  // Initialize auth state
+  await authStore.initialize();
+  
+  // Load initial data if authenticated
+  if (authStore.isAuthenticated) {
+    store.delayLoading = true;
+    
+    try {
+      await Promise.all([
+        store.loadConversations(),
+        store.loadContacts(),
+        store.loadArchivedConversations(),
+      ]);
+    } catch (error) {
+      console.error('Failed to load initial data:', error);
+    } finally {
+      setTimeout(() => {
+        store.delayLoading = false;
+      }, 1000);
+    }
+  }
 });
 
 // the app height
@@ -76,7 +83,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div :class="{ dark: store.settings.darkMode }">
+  <div :class="{ dark: store.settings?.darkMode }">
     <div
       class="bg-white dark:bg-gray-800 transition-colors duration-500"
       :style="{ height: height }"
